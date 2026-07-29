@@ -1,0 +1,6 @@
+coupon_id,coupon_code,discount_type,discount_value,min_order_value,valid_from,valid_to,target_segment
+1,WELCOME50,percentage,50,199,2023-01-01,2026-12-31,new_user
+2,FREEDEL,free_delivery,0,149,2023-01-01,2026-12-31,all
+3,COMEBACK100,flat,100,299,2023-01-01,2026-12-31,churn_risk
+4,PLUS20,percentage,20,249,2023-01-01,2026-12-31,premium
+5,FLAT75,flat,75,249,2023-01-01,2026-12-31,all

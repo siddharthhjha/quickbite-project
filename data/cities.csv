@@ -1,0 +1,11 @@
+city_id,city_name,state,tier,launch_date,population_lakhs,avg_traffic_index
+1,Mumbai,Maharashtra,Tier1,2018-01-15,205,7.8
+2,Delhi,Delhi,Tier1,2018-01-15,320,8.2
+3,Bengaluru,Karnataka,Tier1,2018-03-01,130,8.5
+4,Hyderabad,Telangana,Tier1,2018-06-01,100,6.5
+5,Pune,Maharashtra,Tier2,2019-01-10,70,6.0
+6,Ahmedabad,Gujarat,Tier2,2019-04-15,80,5.0
+7,Jaipur,Rajasthan,Tier2,2020-02-01,40,4.5
+8,Lucknow,Uttar Pradesh,Tier2,2020-08-01,45,4.8
+9,Indore,Madhya Pradesh,Tier3,2021-05-01,25,3.5
+10,Coimbatore,Tamil Nadu,Tier3,2021-09-01,22,3.2

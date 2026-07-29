@@ -1,0 +1,13 @@
+category_id,category_name,is_premium_cuisine
+1,North Indian,False
+2,South Indian,False
+3,Chinese,False
+4,Pizza,False
+5,Biryani,False
+6,Healthy/Salads,True
+7,Desserts,False
+8,Cafe,True
+9,Continental,True
+10,Street Food,False
+11,Sushi,True
+12,Burgers,False
