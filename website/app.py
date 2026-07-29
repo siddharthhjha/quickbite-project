@@ -88,7 +88,11 @@ def safe_date_max(df, column):
 def initialize_session_state():
     """Initialize all session state variables"""
     
-    # Data loading flags
+    # Page selection - DEFAULT LANDING PAGE
+    if 'page_selection' not in st.session_state:
+        st.session_state.page_selection = "📊 Executive Dashboard"
+    
+    # Data loading
     if 'data_loaded' not in st.session_state:
         st.session_state.data_loaded = False
     
@@ -115,8 +119,6 @@ def initialize_session_state():
     # Error state
     if 'load_error' not in st.session_state:
         st.session_state.load_error = None
-
-# Initialize session state
 initialize_session_state()
 
 # =====================================================================
@@ -224,22 +226,10 @@ if not st.session_state.data_loaded:
         except Exception as e:
             st.session_state.load_error = str(e)
             st.session_state.data_loaded = True
-
 # =====================================================================
-# SIDEBAR - NAVIGATION AND FILTERS
+# NAVIGATION
 # =====================================================================
 
-# Logo/Header
-st.sidebar.markdown("""
-    <div style='text-align: center; padding: 10px 0;'>
-        <h1 style='font-size: 28px; margin: 0;'>🍔 QuickBite</h1>
-        <p style='color: #7f8c8d; font-size: 12px; margin: 0;'>Analytics Platform</p>
-    </div>
-""", unsafe_allow_html=True)
-
-st.sidebar.markdown("---")
-
-# Navigation
 pages = {
     "📊 Executive Dashboard": "01_Executive_Dashboard",
     "🔍 SQL Explorer": "02_SQL_Explorer",
@@ -255,12 +245,11 @@ pages = {
     "💡 Recommendations": "12_Recommendations",
     "📚 Data Dictionary": "13_Data_Dictionary",
     "🔗 ER Diagram": "14_ER_Diagram",
-    "📖 Methodology": "15_Methodology",
-    "💡 Recommendations Dashboard": "16_Recommendations_Dashboard",
-    "📈 Business Impact": "17_Business_Impact"
+    "📖 Methodology": "15_Methodology"
 }
 
-selection = st.sidebar.radio("Navigation", list(pages.keys()))
+# Sidebar navigation
+selection = st.sidebar.radio("Navigation", list(pages.keys()), index=0)
 
 # =====================================================================
 # FILTERS - Only if data is loaded
@@ -416,7 +405,6 @@ if st.session_state.start_date and st.session_state.end_date:
             {len(st.session_state.selected_segments)} selected
         </div>
     """, unsafe_allow_html=True)
-
 # =====================================================================
 # LOAD AND EXECUTE THE SELECTED PAGE
 # =====================================================================
@@ -425,46 +413,21 @@ page_file = f"pages/{pages[selection]}.py"
 
 if os.path.exists(page_file):
     try:
-        # Read with utf-8 encoding
-        with open(page_file, 'r', encoding='utf-8-sig') as f:
+        with open(page_file, 'r', encoding='utf-8') as f:
             page_code = f.read()
-        
-        # Execute the page
-        exec_globals = {
-            'st': st,
-            'pd': pd,
-            'np': np,
-            'px': px,
-            'go': go,
-            'datetime': datetime,
-            'timedelta': timedelta,
-            'data': data if data_loaded else {},
-            'st_session_state': st.session_state
-        }
-        exec(page_code, exec_globals, {})
-        
-    except UnicodeDecodeError:
-        # If utf-8 fails, try reading as binary and decoding with different encodings
-        for encoding in ['latin-1', 'cp1252', 'iso-8859-1']:
-            try:
-                with open(page_file, 'r', encoding=encoding) as f:
-                    page_code = f.read()
-                exec(page_code, exec_globals, {})
-                break
-            except:
-                continue
-        else:
-            st.error("❌ Could not read page file due to encoding issues")
-            st.info("💡 Try running: python fix_encoding.py")
-            
+        exec(page_code, globals(), {})
     except Exception as e:
         st.error(f"❌ Error loading page: {str(e)}")
         st.code(traceback.format_exc())
 else:
-    st.warning(f"⚠️ Page '{selection}' is under construction.")
+    st.warning(f"⚠️ Page '{selection}' not found.")
     st.info("""
-    **Coming Soon!**
-    This page is being developed. Check back later.
+    **Missing page files!**
+    
+    Please ensure all pages are uploaded to GitHub:
+    - `pages/01_Executive_Dashboard.py`
+    - `pages/02_SQL_Explorer.py`
+    - ... and all other pages
     """)
 
 # =====================================================================
