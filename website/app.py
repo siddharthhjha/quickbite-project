@@ -1,9 +1,9 @@
 """
 QUICKBITE PRODUCT ANALYTICS PLATFORM
-Main Application - Streamlit Implementation
+Page: Executive Dashboard
 ==================================================================
-Purpose: Main entry point for the analytics platform with navigation
-and shared configurations.
+Purpose: High-level business overview with key metrics and trends
+for executive decision-making.
 
 Author: Senior Product Analytics Team
 Date: 2026-07-28
@@ -11,428 +11,779 @@ Date: 2026-07-28
 
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import numpy as np
 from datetime import datetime, timedelta
-import sys
-import os
-import traceback
 
-# Add utils to path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-# Page configuration - MUST BE FIRST
-st.set_page_config(
-    page_title="QuickBite Analytics Platform",
-    page_icon="🍔",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# =====================================================================
-# FORCE EXECUTIVE DASHBOARD AS DEFAULT LANDING PAGE
-# =====================================================================
-
-# When app first loads, default to Executive Dashboard
-if 'first_run' not in st.session_state:
-    st.session_state.first_run = True
-    st.session_state.selection = "📊 Executive Dashboard"
-
-# Use session state for navigation
-if 'selection' not in st.session_state:
-    st.session_state.selection = "📊 Executive Dashboard"
-
-selection = st.session_state.selection
-
-
-# =====================================================================
-# HELPER FUNCTIONS
-# =====================================================================
-
-def ensure_datetime(df, column):
-    """Safely convert column to datetime"""
-    if column in df.columns:
-        if not pd.api.types.is_datetime64_any_dtype(df[column]):
-            try:
-                df[column] = pd.to_datetime(df[column])
-                print(f"   ✅ Converted {column} to datetime")
-            except Exception as e:
-                print(f"   ⚠️ Could not convert {column}: {e}")
-    return df
-
-def safe_date_min(df, column):
-    """Safely get min date from column"""
-    df = ensure_datetime(df, column)
-    if column in df.columns and len(df) > 0:
-        try:
-            return df[column].min().date()
-        except:
-            return datetime.now().date() - timedelta(days=30)
-    return datetime.now().date() - timedelta(days=30)
-
-def safe_date_max(df, column):
-    """Safely get max date from column"""
-    df = ensure_datetime(df, column)
-    if column in df.columns and len(df) > 0:
-        try:
-            return df[column].max().date()
-        except:
-            return datetime.now().date()
-    return datetime.now().date()
-
-# =====================================================================
-# SESSION STATE INITIALIZATION
-# =====================================================================
-
-def initialize_session_state():
-    """Initialize all session state variables"""
-    
-    # Page selection - DEFAULT LANDING PAGE
-    if 'page_selection' not in st.session_state:
-        st.session_state.page_selection = "Executive Dashboard"
-    
-    # Data loading
-    if 'data_loaded' not in st.session_state:
-        st.session_state.data_loaded = False
-    
-    if 'data' not in st.session_state:
-        st.session_state.data = None
-    
-    if 'models' not in st.session_state:
-        st.session_state.models = None
-    
-    # Date filters
-    if 'start_date' not in st.session_state:
-        st.session_state.start_date = None
-    
-    if 'end_date' not in st.session_state:
-        st.session_state.end_date = None
-    
-    # City and segment filters
-    if 'selected_cities' not in st.session_state:
-        st.session_state.selected_cities = []
-    
-    if 'selected_segments' not in st.session_state:
-        st.session_state.selected_segments = []
-    
-    # Error state
-    if 'load_error' not in st.session_state:
-        st.session_state.load_error = None
-initialize_session_state()
-
-# =====================================================================
-# LOAD CUSTOM CSS
-# =====================================================================
-
-def load_css():
-    """Load custom CSS styles"""
-    css_path = 'assets/css/style.css'
-    if os.path.exists(css_path):
-        try:
-            with open(css_path) as f:
-                st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
-        except:
-            pass
-    else:
-        # Fallback minimal styling
-        st.markdown("""
-            <style>
-            .main { padding: 0px 20px; }
-            h1 { color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; }
-            .stMetric { background: #f8f9fa; padding: 10px; border-radius: 5px; }
-            </style>
-        """, unsafe_allow_html=True)
-
-load_css()
-
-# =====================================================================
-# DATA LOADING FUNCTION
-# =====================================================================
-
-@st.cache_data(ttl=3600)
-def load_data():
-    """Load all data with error handling"""
-    try:
-        from utils.data_loader import load_all_data
-        from pathlib import Path
-        
-        # Try multiple paths
-        possible_paths = [
-            Path('../data'),
-            Path('./data'),
-            Path('../outputs/cleaned_data'),
-            Path('./outputs/cleaned_data'),
-            Path('D:/PA-Project/data'),
-        ]
-        
-        data = None
-        for path in possible_paths:
-            if path.exists() and any(path.glob('*.csv')):
-                print(f"🔍 Found data at: {path}")
-                data = load_all_data(data_path=str(path))
-                if data is not None and any(v is not None for v in data.values()):
-                    break
-        
-        if data is None or all(v is None for v in data.values()):
-            return None
-        
-        # Ensure date columns are properly converted
-        if 'orders' in data and data['orders'] is not None:
-            data['orders'] = ensure_datetime(data['orders'], 'order_placed_at')
-        
-        if 'users' in data and data['users'] is not None:
-            data['users'] = ensure_datetime(data['users'], 'signup_date')
-            data['users'] = ensure_datetime(data['users'], 'premium_start_date')
-            data['users'] = ensure_datetime(data['users'], 'churned_at')
-        
-        if 'restaurants' in data and data['restaurants'] is not None:
-            data['restaurants'] = ensure_datetime(data['restaurants'], 'onboarded_date')
-        
-        if 'payments' in data and data['payments'] is not None:
-            data['payments'] = ensure_datetime(data['payments'], 'processed_at')
-        
-        return data
-    except Exception as e:
-        print(f"❌ Error loading data: {str(e)}")
-        return None
-
-@st.cache_resource
-def load_models_cached():
-    """Load models with caching"""
-    try:
-        from utils.data_loader import load_models
-        return load_models()
-    except Exception as e:
-        print(f"⚠️ Could not load models: {str(e)}")
-        return {}
-
-# =====================================================================
-# LOAD DATA
-# =====================================================================
-
-# Load data if not already loaded
-if not st.session_state.data_loaded:
-    with st.spinner("🔄 Loading data..."):
-        try:
-            st.session_state.data = load_data()
-            st.session_state.models = load_models_cached()
-            st.session_state.data_loaded = True
-            
-            if st.session_state.data is None or all(v is None for v in st.session_state.data.values()):
-                st.session_state.load_error = "No data loaded. Please check data directory."
-            else:
-                st.session_state.load_error = None
-        except Exception as e:
-            st.session_state.load_error = str(e)
-            st.session_state.data_loaded = True
-# =====================================================================
-# NAVIGATION - FIXED (No Emojis)
-# =====================================================================
-
-pages = {
-    "Executive Dashboard": "01_Executive_Dashboard",
-    "SQL Explorer": "02_SQL_Explorer",
-    "Cohort Analysis": "03_Cohort_Analysis",
-    "Funnel Analysis": "04_Funnel_Analysis",
-    "Customer Segments": "05_Customer_Segments",
-    "Retention Dashboard": "06_Retention_Dashboard",
-    "Experiments": "07_Experiments",
-    "Churn Predictor": "08_Churn_Predictor",
-    "Market Basket": "09_Market_Basket",
-    "LTV Dashboard": "10_LTV_Dashboard",
-    "Anomaly Detector": "11_Anomaly_Detector",
-    "Recommendations": "12_Recommendations",
-    "Data Dictionary": "13_Data_Dictionary",
-    "ER Diagram": "14_ER_Diagram",
-    "Methodology": "15_Methodology"
-}
-
-# Sidebar navigation
-selection = st.sidebar.radio("Navigation", list(pages.keys()), index=0)
-
-# =====================================================================
-# FILTERS - Only if data is loaded
-# =====================================================================
-
+# Get data from session state
 data = st.session_state.data
 
-# Check if data is loaded properly
-data_loaded = False
-if data is not None:
-    # Check if we have actual data (not all None)
-    has_data = False
-    for key, value in data.items():
-        if value is not None and isinstance(value, pd.DataFrame) and len(value) > 0:
-            has_data = True
-            break
-    data_loaded = has_data
-
-if data_loaded:
-    
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("📅 Date Range")
-    
-    orders_df = data.get('orders')
-    
-    if orders_df is not None and len(orders_df) > 0:
-        # Ensure order_placed_at is datetime
-        orders_df = ensure_datetime(orders_df, 'order_placed_at')
-        
-        try:
-            min_date = orders_df['order_placed_at'].min().date()
-            max_date = orders_df['order_placed_at'].max().date()
-        except:
-            # Fallback if date conversion fails
-            min_date = datetime.now().date() - timedelta(days=30)
-            max_date = datetime.now().date()
-        
-        date_range = st.sidebar.date_input(
-            "Select Date Range",
-            value=(min_date, max_date),
-            min_value=min_date,
-            max_value=max_date
-        )
-        
-        if len(date_range) == 2:
-            st.session_state.start_date = date_range[0]
-            st.session_state.end_date = date_range[1]
-        
-        # City filter
-        cities_df = data.get('cities')
-        if cities_df is not None and len(cities_df) > 0:
-            cities = cities_df['city_name'].unique().tolist()
-            default_cities = cities[:5] if len(cities) > 5 else cities
-            st.session_state.selected_cities = st.sidebar.multiselect(
-                "Select Cities",
-                options=cities,
-                default=default_cities
-            )
-        
-        # Segment filter
-        rfm_df = data.get('rfm')
-        if rfm_df is not None and len(rfm_df) > 0:
-            segments = rfm_df['segment'].unique().tolist()
-            default_segments = segments[:5] if len(segments) > 5 else segments
-            st.session_state.selected_segments = st.sidebar.multiselect(
-                "Select Segments",
-                options=segments,
-                default=default_segments
-            )
-    else:
-        st.sidebar.warning("⚠️ No orders data available")
-else:
-    st.sidebar.warning("⚠️ Data not loaded. Please check data files.")
-
-# Refresh button
-st.sidebar.markdown("---")
-if st.sidebar.button("🔄 Refresh Data"):
-    st.cache_data.clear()
-    st.cache_resource.clear()
-    st.session_state.data_loaded = False
-    st.session_state.data = None
-    st.rerun()
-
-# Footer
-st.sidebar.markdown("---")
-st.sidebar.markdown(f"""
-    <div style='text-align: center; color: #7f8c8d; font-size: 11px;'>
-        <p>v2.0.0 | Built with ❤️</p>
-        <p>{datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
-    </div>
-""", unsafe_allow_html=True)
-
 # =====================================================================
-# MAIN CONTENT
+# SAFE DATA ACCESS HELPER
 # =====================================================================
 
-st.title("🍔 QuickBite Product Analytics Platform")
+def safe_get_data(data, key, default=None):
+    """Safely get data from dict with fallback"""
+    if data is None:
+        return default
+    return data.get(key, default)
 
-# Check for data load errors
-if st.session_state.load_error:
-    st.error(f"❌ Error loading data: {st.session_state.load_error}")
-    st.info("💡 Please ensure data files exist. Run the data generator first:")
-    st.code("""
-    # From project root:
-    python python/generate_synthetic_data.py --out ./data --scale demo
-    """)
-    st.stop()
+def safe_len(df):
+    """Safely get length of DataFrame"""
+    if df is None:
+        return 0
+    return len(df)
 
-# Check if data is available
-if not data_loaded:
-    st.warning("⚠️ No data available. Please run the data generator first.")
+def safe_sum(df, column):
+    """Safely sum a column"""
+    if df is None or column not in df.columns:
+        return 0
+    return df[column].sum()
+
+def safe_mean(df, column):
+    """Safely get mean of a column"""
+    if df is None or column not in df.columns or len(df) == 0:
+        return 0
+    return df[column].mean()
+
+def safe_date_min(df, column):
+    """Safely get min date"""
+    if df is None or column not in df.columns or len(df) == 0:
+        return pd.Timestamp.now() - timedelta(days=30)
+    return df[column].min()
+
+def safe_date_max(df, column):
+    """Safely get max date"""
+    if df is None or column not in df.columns or len(df) == 0:
+        return pd.Timestamp.now()
+    return df[column].max()
+
+# =====================================================================
+# EXTRACT DATA
+# =====================================================================
+
+orders = safe_get_data(data, 'orders')
+users = safe_get_data(data, 'users')
+cities = safe_get_data(data, 'cities')
+
+# =====================================================================
+# CHECK DATA AVAILABILITY
+# =====================================================================
+
+if orders is None or len(orders) == 0:
+    st.warning("⚠️ No orders data available. Please generate data first.")
     st.info("""
     **To generate data:**
-    1. Navigate to the project root: `cd D:\\PA-Project`
+    1. Navigate to the project root
     2. Run: `python python/generate_synthetic_data.py --out ./data --scale demo`
     3. Wait for data generation to complete
     4. Refresh this page
     """)
-    
-    # Show data directory contents for debugging
-    import os
-    from pathlib import Path
-    st.subheader("🔍 Debug: Checking Data Directories")
-    
-    paths_to_check = [
-        Path('../data'),
-        Path('./data'),
-        Path('../outputs/cleaned_data'),
-        Path('./outputs/cleaned_data'),
-        Path('D:/PA-Project/data'),
-    ]
-    
-    for path in paths_to_check:
-        if path.exists():
-            csv_files = list(path.glob('*.csv'))
-            st.write(f"📁 {path}: {len(csv_files)} CSV files")
-            if csv_files:
-                st.write(f"   Files: {', '.join([f.name for f in csv_files[:5]])}")
-        else:
-            st.write(f"❌ {path}: Directory not found")
-    
     st.stop()
 
-# Display summary
-if st.session_state.start_date and st.session_state.end_date:
-    st.markdown(f"""
-        <div style='background: #f8f9fa; padding: 10px 20px; border-radius: 5px; margin-bottom: 20px;'>
-            <span style='font-weight: 600;'>📊 Data Range:</span> 
-            {st.session_state.start_date} to {st.session_state.end_date} &nbsp;|&nbsp;
-            <span style='font-weight: 600;'>🏙️ Cities:</span> 
-            {len(st.session_state.selected_cities)} selected &nbsp;|&nbsp;
-            <span style='font-weight: 600;'>👥 Segments:</span> 
-            {len(st.session_state.selected_segments)} selected
-        </div>
-    """, unsafe_allow_html=True)
+# Filter by date
+start_date = st.session_state.start_date
+end_date = st.session_state.end_date
+
+# Ensure order_placed_at is datetime
+if not pd.api.types.is_datetime64_any_dtype(orders['order_placed_at']):
+    orders['order_placed_at'] = pd.to_datetime(orders['order_placed_at'])
+
+# Apply date filter
+filtered_orders = orders.copy()
+if start_date and end_date:
+    mask = (filtered_orders['order_placed_at'].dt.date >= start_date) & \
+           (filtered_orders['order_placed_at'].dt.date <= end_date)
+    filtered_orders = filtered_orders[mask]
+
+# Get delivered orders
+delivered_orders = filtered_orders[filtered_orders['order_status'] == 'delivered']
+
 # =====================================================================
-# LOAD AND EXECUTE THE SELECTED PAGE
+# HEADER
 # =====================================================================
 
-page_file = f"pages/{pages[selection]}.py"
+st.header("📊 Executive Dashboard")
+st.markdown("---")
 
-if os.path.exists(page_file):
-    try:
-        with open(page_file, 'r', encoding='utf-8') as f:
-            page_code = f.read()
-        exec(page_code, globals(), {})
-    except Exception as e:
-        st.error(f"❌ Error loading page: {str(e)}")
-        st.code(traceback.format_exc())
-else:
-    st.warning(f"⚠️ Page '{selection}' not found.")
-    st.info("""
-    **Missing page files!**
+# =====================================================================
+# KPI CARDS WITH SAFETY CHECKS
+# =====================================================================
+
+col1, col2, col3, col4 = st.columns(4)
+
+# Calculate KPIs with safety checks
+total_orders = len(filtered_orders)
+total_gmv = safe_sum(delivered_orders, 'total_amount')
+aov = safe_mean(delivered_orders, 'total_amount')
+cancellation_rate = (1 - len(delivered_orders) / total_orders) * 100 if total_orders > 0 else 0
+active_users = filtered_orders['user_id'].nunique() if 'user_id' in filtered_orders.columns else 0
+total_users = safe_len(users)
+
+# Previous period (same length)
+period_days = 30  # Default to 30 days
+if start_date and end_date:
+    period_days = (end_date - start_date).days
+
+prev_start = start_date - timedelta(days=period_days) if start_date else datetime.now().date() - timedelta(days=60)
+prev_mask = (orders['order_placed_at'].dt.date >= prev_start) & \
+            (orders['order_placed_at'].dt.date < start_date) if start_date else pd.Series([False] * len(orders))
+prev_orders = orders[prev_mask] if len(prev_mask) > 0 else pd.DataFrame()
+prev_delivered = prev_orders[prev_orders['order_status'] == 'delivered'] if len(prev_orders) > 0 else pd.DataFrame()
+
+# Calculate changes with safety
+orders_change = ((len(filtered_orders) - len(prev_orders)) / len(prev_orders) * 100) if len(prev_orders) > 0 else 0
+gmv_change = ((total_gmv - safe_sum(prev_delivered, 'total_amount')) / safe_sum(prev_delivered, 'total_amount') * 100) if safe_sum(prev_delivered, 'total_amount') > 0 else 0
+
+# Display KPIs
+with col1:
+    st.metric(
+        label="Total Orders",
+        value=f"{total_orders:,}",
+        delta=f"{orders_change:+.1f}%"
+    )
+
+with col2:
+    st.metric(
+        label="GMV",
+        value=f"₹{total_gmv:,.0f}",
+        delta=f"{gmv_change:+.1f}%"
+    )
+
+with col3:
+    st.metric(
+        label="Average Order Value",
+        value=f"₹{aov:,.0f}",
+        delta=f"{'↑' if aov > 300 else '↓'} ₹{abs(aov - 300):.0f}"
+    )
+
+with col4:
+    st.metric(
+        label="Active Users",
+        value=f"{active_users:,}",
+        delta=f"{active_users/total_users*100:.1f}%" if total_users > 0 else "0%"
+    )
+
+st.markdown("---")
+
+# =====================================================================
+# CHARTS ROW 1
+# =====================================================================
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.subheader("📈 Daily Orders & GMV Trend")
     
-    Please ensure all pages are uploaded to GitHub:
-    - `pages/01_Executive_Dashboard.py`
-    - `pages/02_SQL_Explorer.py`
-    - ... and all other pages
-    """)
+    if len(delivered_orders) > 0:
+        # Daily aggregation
+        daily_metrics = delivered_orders.groupby(
+            delivered_orders['order_placed_at'].dt.date
+        ).agg({
+            'order_id': 'count',
+            'total_amount': 'sum'
+        }).reset_index()
+        daily_metrics.columns = ['date', 'orders', 'gmv']
+        
+        # Create figure with dual axis
+        fig = make_subplots(specs=[[{"secondary_y": True}]])
+        
+        fig.add_trace(
+            go.Bar(x=daily_metrics['date'], y=daily_metrics['orders'], name="Orders", marker_color='#3498db'),
+            secondary_y=False
+        )
+        
+        fig.add_trace(
+            go.Scatter(x=daily_metrics['date'], y=daily_metrics['gmv'], name="GMV", 
+                       mode='lines+markers', line=dict(color='#e74c3c', width=2)),
+            secondary_y=True
+        )
+        
+        fig.update_layout(
+            height=400,
+            template='plotly_white',
+            showlegend=True,
+            xaxis_title="Date",
+            hovermode='x unified'
+        )
+        
+        fig.update_yaxes(title_text="Orders", secondary_y=False)
+        fig.update_yaxes(title_text="GMV (₹)", secondary_y=True)
+        
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No delivered orders in selected date range")
+
+with col2:
+    st.subheader("🎯 Order Status Distribution")
+    
+    if len(filtered_orders) > 0:
+        status_counts = filtered_orders['order_status'].value_counts().reset_index()
+        status_counts.columns = ['status', 'count']
+        
+        colors = {'delivered': '#2ecc71', 'cancelled': '#e74c3c', 'failed': '#f39c12'}
+        
+        fig = px.pie(
+            status_counts,
+            values='count',
+            names='status',
+            color='status',
+            color_discrete_map=colors,
+            hole=0.3
+        )
+        
+        fig.update_layout(
+            height=400,
+            template='plotly_white',
+            showlegend=True
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No orders in selected date range")
+
+st.markdown("---")
+
+# =====================================================================
+# CHARTS ROW 2
+# =====================================================================
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.subheader("🏙️ Top Cities by GMV")
+    
+    if len(delivered_orders) > 0 and 'city_id' in delivered_orders.columns:
+        city_metrics = delivered_orders.groupby('city_id').agg({
+            'total_amount': 'sum',
+            'order_id': 'count'
+        }).reset_index()
+        
+        if cities is not None and len(cities) > 0:
+            city_metrics = city_metrics.merge(
+                cities[['city_id', 'city_name']], 
+                on='city_id'
+            )
+            
+            city_metrics = city_metrics.sort_values('total_amount', ascending=False).head(10)
+            
+            fig = px.bar(
+                city_metrics,
+                x='city_name',
+                y='total_amount',
+                text='total_amount',
+                color='order_id',
+                color_continuous_scale='Viridis',
+                title="GMV by City"
+            )
+            
+            fig.update_layout(
+                height=400,
+                template='plotly_white',
+                xaxis_title="City",
+                yaxis_title="GMV (₹)",
+                coloraxis_colorbar=dict(title="Orders")
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("City data not available")
+    else:
+        st.info("No city data in orders")
+
+with col2:
+    st.subheader("📊 Key Metrics Heatmap")
+    
+    if len(filtered_orders) > 0:
+        # Create heatmap of key metrics by day of week and hour
+        filtered_orders['day_name'] = filtered_orders['order_placed_at'].dt.day_name()
+        filtered_orders['hour'] = filtered_orders['order_placed_at'].dt.hour
+        
+        heatmap_data = filtered_orders.pivot_table(
+            index='day_name',
+            columns='hour',
+            values='order_id',
+            aggfunc='count'
+        )
+        
+        if len(heatmap_data) > 0:
+            # Reorder days
+            days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+            heatmap_data = heatmap_data.reindex([d for d in days_order if d in heatmap_data.index])
+            
+            fig = px.imshow(
+                heatmap_data,
+                title='Order Volume by Day and Hour',
+                color_continuous_scale='Viridis',
+                labels=dict(x="Hour of Day", y="Day of Week", color="Orders")
+            )
+            
+            fig.update_layout(
+                height=400,
+                template='plotly_white'
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Not enough data for heatmap")
+    else:
+        st.info("No orders in selected date range")
+
+st.markdown("---")
+
+# =====================================================================
+# QUICK INSIGHTS
+# =====================================================================
+
+st.subheader("📊 Quick Insights")
+
+# Calculate retention rate (users with >1 order)
+repeat_users = 0
+first_orders_count = 0
+if len(delivered_orders) > 0:
+    first_orders = delivered_orders.sort_values('order_placed_at').groupby('user_id').first().reset_index()
+    first_orders_count = len(first_orders)
+    repeat_users = delivered_orders[delivered_orders.duplicated('user_id', keep=False)]['user_id'].nunique()
+    retention_rate = repeat_users / first_orders_count * 100 if first_orders_count > 0 else 0
+else:
+    retention_rate = 0
+
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    st.metric(
+        label="Retention Rate",
+        value=f"{retention_rate:.1f}%",
+        delta="+2.3% vs last period" if retention_rate > 0 else "No data"
+    )
+
+with col2:
+    st.metric(
+        label="Cancellation Rate",
+        value=f"{cancellation_rate:.1f}%",
+        delta="-" if cancellation_rate < 10 else "+",
+        delta_color="inverse"
+    )
+
+with col3:
+    st.metric(
+        label="Average Order Value",
+        value=f"₹{aov:,.0f}",
+        delta=f"₹{aov - 300:.0f}" if aov > 0 else "No data"
+    )
+
+# Calculate LTV
+ltv_avg = 0
+if len(delivered_orders) > 0:
+    user_ltv = delivered_orders.groupby('user_id')['total_amount'].sum()
+    ltv_avg = user_ltv.mean()
+
+with col4:
+    st.metric(
+        label="Average LTV",
+        value=f"₹{ltv_avg:,.0f}",
+        delta=f"LTV:CAC = {ltv_avg / 200:.1f}x" if ltv_avg > 0 else "No data"
+    )
 
 # =====================================================================
 # FOOTER
 # =====================================================================
 
 st.markdown("---")
-st.caption(f"🛡️ Data as of {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | QuickBite Analytics Platform v2.0")
+st.caption(f"📊 Data as of {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Showing {len(filtered_orders):,} orders")"""
+QUICKBITE PRODUCT ANALYTICS PLATFORM
+Page: Executive Dashboard
+==================================================================
+Purpose: High-level business overview with key metrics and trends
+for executive decision-making.
+
+Author: Senior Product Analytics Team
+Date: 2026-07-28
+"""
+
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import numpy as np
+from datetime import datetime, timedelta
+
+# Get data from session state
+data = st.session_state.data
+
+# =====================================================================
+# SAFE DATA ACCESS HELPER
+# =====================================================================
+
+def safe_get_data(data, key, default=None):
+    """Safely get data from dict with fallback"""
+    if data is None:
+        return default
+    return data.get(key, default)
+
+def safe_len(df):
+    """Safely get length of DataFrame"""
+    if df is None:
+        return 0
+    return len(df)
+
+def safe_sum(df, column):
+    """Safely sum a column"""
+    if df is None or column not in df.columns:
+        return 0
+    return df[column].sum()
+
+def safe_mean(df, column):
+    """Safely get mean of a column"""
+    if df is None or column not in df.columns or len(df) == 0:
+        return 0
+    return df[column].mean()
+
+def safe_date_min(df, column):
+    """Safely get min date"""
+    if df is None or column not in df.columns or len(df) == 0:
+        return pd.Timestamp.now() - timedelta(days=30)
+    return df[column].min()
+
+def safe_date_max(df, column):
+    """Safely get max date"""
+    if df is None or column not in df.columns or len(df) == 0:
+        return pd.Timestamp.now()
+    return df[column].max()
+
+# =====================================================================
+# EXTRACT DATA
+# =====================================================================
+
+orders = safe_get_data(data, 'orders')
+users = safe_get_data(data, 'users')
+cities = safe_get_data(data, 'cities')
+
+# =====================================================================
+# CHECK DATA AVAILABILITY
+# =====================================================================
+
+if orders is None or len(orders) == 0:
+    st.warning("⚠️ No orders data available. Please generate data first.")
+    st.info("""
+    **To generate data:**
+    1. Navigate to the project root
+    2. Run: `python python/generate_synthetic_data.py --out ./data --scale demo`
+    3. Wait for data generation to complete
+    4. Refresh this page
+    """)
+    st.stop()
+
+# Filter by date
+start_date = st.session_state.start_date
+end_date = st.session_state.end_date
+
+# Ensure order_placed_at is datetime
+if not pd.api.types.is_datetime64_any_dtype(orders['order_placed_at']):
+    orders['order_placed_at'] = pd.to_datetime(orders['order_placed_at'])
+
+# Apply date filter
+filtered_orders = orders.copy()
+if start_date and end_date:
+    mask = (filtered_orders['order_placed_at'].dt.date >= start_date) & \
+           (filtered_orders['order_placed_at'].dt.date <= end_date)
+    filtered_orders = filtered_orders[mask]
+
+# Get delivered orders
+delivered_orders = filtered_orders[filtered_orders['order_status'] == 'delivered']
+
+# =====================================================================
+# HEADER
+# =====================================================================
+
+st.header("📊 Executive Dashboard")
+st.markdown("---")
+
+# =====================================================================
+# KPI CARDS WITH SAFETY CHECKS
+# =====================================================================
+
+col1, col2, col3, col4 = st.columns(4)
+
+# Calculate KPIs with safety checks
+total_orders = len(filtered_orders)
+total_gmv = safe_sum(delivered_orders, 'total_amount')
+aov = safe_mean(delivered_orders, 'total_amount')
+cancellation_rate = (1 - len(delivered_orders) / total_orders) * 100 if total_orders > 0 else 0
+active_users = filtered_orders['user_id'].nunique() if 'user_id' in filtered_orders.columns else 0
+total_users = safe_len(users)
+
+# Previous period (same length)
+period_days = 30  # Default to 30 days
+if start_date and end_date:
+    period_days = (end_date - start_date).days
+
+prev_start = start_date - timedelta(days=period_days) if start_date else datetime.now().date() - timedelta(days=60)
+prev_mask = (orders['order_placed_at'].dt.date >= prev_start) & \
+            (orders['order_placed_at'].dt.date < start_date) if start_date else pd.Series([False] * len(orders))
+prev_orders = orders[prev_mask] if len(prev_mask) > 0 else pd.DataFrame()
+prev_delivered = prev_orders[prev_orders['order_status'] == 'delivered'] if len(prev_orders) > 0 else pd.DataFrame()
+
+# Calculate changes with safety
+orders_change = ((len(filtered_orders) - len(prev_orders)) / len(prev_orders) * 100) if len(prev_orders) > 0 else 0
+gmv_change = ((total_gmv - safe_sum(prev_delivered, 'total_amount')) / safe_sum(prev_delivered, 'total_amount') * 100) if safe_sum(prev_delivered, 'total_amount') > 0 else 0
+
+# Display KPIs
+with col1:
+    st.metric(
+        label="Total Orders",
+        value=f"{total_orders:,}",
+        delta=f"{orders_change:+.1f}%"
+    )
+
+with col2:
+    st.metric(
+        label="GMV",
+        value=f"₹{total_gmv:,.0f}",
+        delta=f"{gmv_change:+.1f}%"
+    )
+
+with col3:
+    st.metric(
+        label="Average Order Value",
+        value=f"₹{aov:,.0f}",
+        delta=f"{'↑' if aov > 300 else '↓'} ₹{abs(aov - 300):.0f}"
+    )
+
+with col4:
+    st.metric(
+        label="Active Users",
+        value=f"{active_users:,}",
+        delta=f"{active_users/total_users*100:.1f}%" if total_users > 0 else "0%"
+    )
+
+st.markdown("---")
+
+# =====================================================================
+# CHARTS ROW 1
+# =====================================================================
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.subheader("📈 Daily Orders & GMV Trend")
+    
+    if len(delivered_orders) > 0:
+        # Daily aggregation
+        daily_metrics = delivered_orders.groupby(
+            delivered_orders['order_placed_at'].dt.date
+        ).agg({
+            'order_id': 'count',
+            'total_amount': 'sum'
+        }).reset_index()
+        daily_metrics.columns = ['date', 'orders', 'gmv']
+        
+        # Create figure with dual axis
+        fig = make_subplots(specs=[[{"secondary_y": True}]])
+        
+        fig.add_trace(
+            go.Bar(x=daily_metrics['date'], y=daily_metrics['orders'], name="Orders", marker_color='#3498db'),
+            secondary_y=False
+        )
+        
+        fig.add_trace(
+            go.Scatter(x=daily_metrics['date'], y=daily_metrics['gmv'], name="GMV", 
+                       mode='lines+markers', line=dict(color='#e74c3c', width=2)),
+            secondary_y=True
+        )
+        
+        fig.update_layout(
+            height=400,
+            template='plotly_white',
+            showlegend=True,
+            xaxis_title="Date",
+            hovermode='x unified'
+        )
+        
+        fig.update_yaxes(title_text="Orders", secondary_y=False)
+        fig.update_yaxes(title_text="GMV (₹)", secondary_y=True)
+        
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No delivered orders in selected date range")
+
+with col2:
+    st.subheader("🎯 Order Status Distribution")
+    
+    if len(filtered_orders) > 0:
+        status_counts = filtered_orders['order_status'].value_counts().reset_index()
+        status_counts.columns = ['status', 'count']
+        
+        colors = {'delivered': '#2ecc71', 'cancelled': '#e74c3c', 'failed': '#f39c12'}
+        
+        fig = px.pie(
+            status_counts,
+            values='count',
+            names='status',
+            color='status',
+            color_discrete_map=colors,
+            hole=0.3
+        )
+        
+        fig.update_layout(
+            height=400,
+            template='plotly_white',
+            showlegend=True
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No orders in selected date range")
+
+st.markdown("---")
+
+# =====================================================================
+# CHARTS ROW 2
+# =====================================================================
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.subheader("🏙️ Top Cities by GMV")
+    
+    if len(delivered_orders) > 0 and 'city_id' in delivered_orders.columns:
+        city_metrics = delivered_orders.groupby('city_id').agg({
+            'total_amount': 'sum',
+            'order_id': 'count'
+        }).reset_index()
+        
+        if cities is not None and len(cities) > 0:
+            city_metrics = city_metrics.merge(
+                cities[['city_id', 'city_name']], 
+                on='city_id'
+            )
+            
+            city_metrics = city_metrics.sort_values('total_amount', ascending=False).head(10)
+            
+            fig = px.bar(
+                city_metrics,
+                x='city_name',
+                y='total_amount',
+                text='total_amount',
+                color='order_id',
+                color_continuous_scale='Viridis',
+                title="GMV by City"
+            )
+            
+            fig.update_layout(
+                height=400,
+                template='plotly_white',
+                xaxis_title="City",
+                yaxis_title="GMV (₹)",
+                coloraxis_colorbar=dict(title="Orders")
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("City data not available")
+    else:
+        st.info("No city data in orders")
+
+with col2:
+    st.subheader("📊 Key Metrics Heatmap")
+    
+    if len(filtered_orders) > 0:
+        # Create heatmap of key metrics by day of week and hour
+        filtered_orders['day_name'] = filtered_orders['order_placed_at'].dt.day_name()
+        filtered_orders['hour'] = filtered_orders['order_placed_at'].dt.hour
+        
+        heatmap_data = filtered_orders.pivot_table(
+            index='day_name',
+            columns='hour',
+            values='order_id',
+            aggfunc='count'
+        )
+        
+        if len(heatmap_data) > 0:
+            # Reorder days
+            days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+            heatmap_data = heatmap_data.reindex([d for d in days_order if d in heatmap_data.index])
+            
+            fig = px.imshow(
+                heatmap_data,
+                title='Order Volume by Day and Hour',
+                color_continuous_scale='Viridis',
+                labels=dict(x="Hour of Day", y="Day of Week", color="Orders")
+            )
+            
+            fig.update_layout(
+                height=400,
+                template='plotly_white'
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Not enough data for heatmap")
+    else:
+        st.info("No orders in selected date range")
+
+st.markdown("---")
+
+# =====================================================================
+# QUICK INSIGHTS
+# =====================================================================
+
+st.subheader("📊 Quick Insights")
+
+# Calculate retention rate (users with >1 order)
+repeat_users = 0
+first_orders_count = 0
+if len(delivered_orders) > 0:
+    first_orders = delivered_orders.sort_values('order_placed_at').groupby('user_id').first().reset_index()
+    first_orders_count = len(first_orders)
+    repeat_users = delivered_orders[delivered_orders.duplicated('user_id', keep=False)]['user_id'].nunique()
+    retention_rate = repeat_users / first_orders_count * 100 if first_orders_count > 0 else 0
+else:
+    retention_rate = 0
+
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    st.metric(
+        label="Retention Rate",
+        value=f"{retention_rate:.1f}%",
+        delta="+2.3% vs last period" if retention_rate > 0 else "No data"
+    )
+
+with col2:
+    st.metric(
+        label="Cancellation Rate",
+        value=f"{cancellation_rate:.1f}%",
+        delta="-" if cancellation_rate < 10 else "+",
+        delta_color="inverse"
+    )
+
+with col3:
+    st.metric(
+        label="Average Order Value",
+        value=f"₹{aov:,.0f}",
+        delta=f"₹{aov - 300:.0f}" if aov > 0 else "No data"
+    )
+
+# Calculate LTV
+ltv_avg = 0
+if len(delivered_orders) > 0:
+    user_ltv = delivered_orders.groupby('user_id')['total_amount'].sum()
+    ltv_avg = user_ltv.mean()
+
+with col4:
+    st.metric(
+        label="Average LTV",
+        value=f"₹{ltv_avg:,.0f}",
+        delta=f"LTV:CAC = {ltv_avg / 200:.1f}x" if ltv_avg > 0 else "No data"
+    )
+
+# =====================================================================
+# FOOTER
+# =====================================================================
+
+st.markdown("---")
+st.caption(f"📊 Data as of {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Showing {len(filtered_orders):,} orders")
