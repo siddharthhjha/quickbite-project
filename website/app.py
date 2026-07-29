@@ -31,6 +31,22 @@ st.set_page_config(
 )
 
 # =====================================================================
+# FORCE EXECUTIVE DASHBOARD AS DEFAULT LANDING PAGE
+# =====================================================================
+
+# When app first loads, default to Executive Dashboard
+if 'first_run' not in st.session_state:
+    st.session_state.first_run = True
+    st.session_state.selection = "📊 Executive Dashboard"
+
+# Use session state for navigation
+if 'selection' not in st.session_state:
+    st.session_state.selection = "📊 Executive Dashboard"
+
+selection = st.session_state.selection
+
+
+# =====================================================================
 # HELPER FUNCTIONS
 # =====================================================================
 
