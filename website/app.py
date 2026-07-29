@@ -392,7 +392,7 @@ with col4:
 # =====================================================================
 
 st.markdown("---")
-st.caption(f"📊 Data as of {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Showing {len(filtered_orders):,} orders")"""
+st.caption(f"Data as of {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Showing {len(filtered_orders):,} orders")
 QUICKBITE PRODUCT ANALYTICS PLATFORM
 Page: Executive Dashboard
 ==================================================================
