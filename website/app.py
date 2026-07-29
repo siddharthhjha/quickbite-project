@@ -90,7 +90,7 @@ def initialize_session_state():
     
     # Page selection - DEFAULT LANDING PAGE
     if 'page_selection' not in st.session_state:
-        st.session_state.page_selection = "📊 Executive Dashboard"
+        st.session_state.page_selection = "Executive Dashboard"
     
     # Data loading
     if 'data_loaded' not in st.session_state:
@@ -227,25 +227,25 @@ if not st.session_state.data_loaded:
             st.session_state.load_error = str(e)
             st.session_state.data_loaded = True
 # =====================================================================
-# NAVIGATION
+# NAVIGATION - FIXED (No Emojis)
 # =====================================================================
 
 pages = {
-    "📊 Executive Dashboard": "01_Executive_Dashboard",
-    "🔍 SQL Explorer": "02_SQL_Explorer",
-    "📈 Cohort Analysis": "03_Cohort_Analysis",
-    "🎯 Funnel Analysis": "04_Funnel_Analysis",
-    "👥 Customer Segments": "05_Customer_Segments",
-    "🔄 Retention Dashboard": "06_Retention_Dashboard",
-    "🧪 Experiments": "07_Experiments",
-    "⚠️ Churn Predictor": "08_Churn_Predictor",
-    "🛒 Market Basket": "09_Market_Basket",
-    "💰 LTV Dashboard": "10_LTV_Dashboard",
-    "🚨 Anomaly Detector": "11_Anomaly_Detector",
-    "💡 Recommendations": "12_Recommendations",
-    "📚 Data Dictionary": "13_Data_Dictionary",
-    "🔗 ER Diagram": "14_ER_Diagram",
-    "📖 Methodology": "15_Methodology"
+    "Executive Dashboard": "01_Executive_Dashboard",
+    "SQL Explorer": "02_SQL_Explorer",
+    "Cohort Analysis": "03_Cohort_Analysis",
+    "Funnel Analysis": "04_Funnel_Analysis",
+    "Customer Segments": "05_Customer_Segments",
+    "Retention Dashboard": "06_Retention_Dashboard",
+    "Experiments": "07_Experiments",
+    "Churn Predictor": "08_Churn_Predictor",
+    "Market Basket": "09_Market_Basket",
+    "LTV Dashboard": "10_LTV_Dashboard",
+    "Anomaly Detector": "11_Anomaly_Detector",
+    "Recommendations": "12_Recommendations",
+    "Data Dictionary": "13_Data_Dictionary",
+    "ER Diagram": "14_ER_Diagram",
+    "Methodology": "15_Methodology"
 }
 
 # Sidebar navigation
